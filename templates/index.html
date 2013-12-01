@@ -1,0 +1,523 @@
+{% extends "bootstrap_responsive.html" %}
+{% import "bootstrap_wtf.html" as wtf %}
+
+{% block title %}Google Social{% endblock %}
+{% block head -%}
+{{super()}}
+  <script type="text/javascript">
+  (function() {
+    var po = document.createElement('script');
+    po.type = 'text/javascript'; po.async = true;
+    po.src = 'https://plus.google.com/js/client:plusone.js';
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(po, s);
+  })();
+  </script>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js" ></script>
+<script src="http://sigmajs.org/js/sigma.min.js"></script>
+<script src="http://sigmajs.org/js/sigma.parseGexf.js"></script>
+{%- endblock %}
+
+{% block body_content %}
+    <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+          <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </a>
+          <a class="brand" href="#">Google+ Graph</a>
+          <div class="nav-collapse">
+            <ul class="nav">
+              <li class="active"><a href="#profileTab" id="profileMenu" style="display:none">Me</a></li>
+	      <li><a href="#authResultTab" id="authResulMenu" style="display:none">Console</a></li>
+              <li><a href="#visiblePeopleTab" id="visiblePeopleMenu" style="display:none">Friends</a></li>
+              <li><a href="#graphTab"  id="graphMenu" style="display:none">Graph</a></li>
+            </ul>
+          </div><!--/.nav-collapse -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <!-- Main hero unit for a primary marketing message or call to action -->
+      <div class="hero-unit">
+	<div id="welcome">
+		<h1>Hello, googler!</h1>
+		<p>This is a secret dashboard for exploring your network.</p>
+	</div>
+	<div id="authOps" style="display:none">
+	    <h2>You are signed in</h2>
+	    <p>If the user chooses to disconnect, the app must delete all stored
+	    information retrieved from Google for the given user.</p>
+	    <button id="disconnect" >Log out</button>
+
+		<div id="profileTab" style="display:none">		
+		    <h2>User's profile information</h2>
+		    <p>This data is retrieved client-side by using the Google JavaScript API
+		    client library.</p>
+		    <div id="profile"></div>
+		</div>
+
+		<div id="visiblePeopleTab" style="display:none">
+		    <h2>User's friends that are visible to this app</h2>
+		    <p>This data is retrieved from your server, where your server makes
+		    an authorized HTTP request on the user's behalf.</p>
+		    <p>If your app uses server-side rendering, this is the section you
+		    would change using your server-side templating system.</p>
+		    <div id="visiblePeople"></div>
+		</div>
+		<div id="authResultTab" style="display:none">
+		    <h2>Authentication Logs</h2>
+		    <pre id="authResult"></pre>
+		 </div>
+		<div id="graphTab" style="display:none">
+		    <h2>Social Graph</h2>
+              <div class="row">
+                <div class="span4">
+
+                  <form id="graph-form" class="form form-horizontal" method="POST">
+                    {{ form.hidden_tag() }}
+                    {{ wtf.form_errors(form, False) }}
+                    {{ wtf.horizontal_field(form.origin) }}
+                    {{ wtf.horizontal_field(form.destination) }}
+                  </form>
+                      <!-- Recaptcha filed omitted here, can't be placed twice? -->
+                    <div class="form-actions">
+                       <button name="action_save" id="refresh" class="btn btn-primary">Refresh</button>
+                       <button name="action_save" id="search" class="btn btn-primary">Search</button>
+                    </div>
+                  </div>
+              </div>
+              <div class="row">
+                <div id="graphPicture" class="span12">
+                        <div class="sigma" id="sigma-example"></div>
+                </div>
+                </div>
+		 </div>
+	</div>
+        <p>
+	  <div id="gConnect">
+	    <button class="g-signin"
+		data-scope="https://www.googleapis.com/auth/plus.login"
+		data-requestvisibleactions="http://schemas.google.com/AddActivity"
+		data-clientId="{{ CLIENT_ID }}"
+		data-accesstype="offline"
+		data-callback="onSignInCallback"
+		data-cookiepolicy="single_host_origin">
+	    </button>
+	  </div>
+	</p>
+      </div>
+
+      <!-- Example row of columns -->
+      <div id="bottomInfo" class="row">
+        <div class="span6">
+          <h2>The Social Graph</h2>
+           <p>The social graph in the Internet context is a sociogram, a graph that depicts personal relations of internet users. It has been referred to as "the global mapping of everybody and how they're related".[1] The term was popularized at the Facebook f8 conference on May 24, 2007, when it was used to explain that the Facebook Platform, which was introduced at the same time, would benefit from the social graph by taking advantage of the relationships between individuals, that Facebook provides, to offer a richer online experience.[2] The definition has been expanded to refer to a social graph of all Internet users. </p>
+          <p><a class="btn" href="#">View details &raquo;</a></p>
+        </div>
+        <div class="span6">
+          <h2>Exploration</h2>
+           <p>In graph theory, breadth-first search (BFS) is a strategy for searching in a graph when search is limited to essentially two operations: (a) visit and inspect a node of a graph; (b) gain access to visit the nodes that neighbor the currently visited node. The BFS begins at a root node and inspects all the neighboring nodes. Then for each of those neighbor nodes in turn, it inspects their neighbor nodes which were unvisited, and so on. </p>
+          <p><a class="btn" href="#">View details &raquo;</a></p>
+       </div>
+      </div>
+
+      <hr>
+
+      <footer>
+      <p>&copy; Paolo Di Prodi 2012 - and <i class="icon-camera-retro"></i> FontAwesome is supported as well!</p>
+      </footer>
+
+    </div> <!-- /container -->
+<script type="text/javascript">
+var helper = (function() {
+  var BASE_API_PATH = 'plus/v1/';
+  var authResult = undefined;
+  var sigRoot = undefined;
+  var sigInst   = undefined;
+  var myOID=undefined;
+  var myDisplayName=undefined;
+  
+  return {
+    /**
+     * Hides the sign-in button and connects the server-side app after
+     * the user successfully signs in.
+     *
+     * @param {Object} authResult An Object which contains the access token and
+     *   other authentication information.
+     */
+    onSignInCallback: function(authResult) {
+      $('#authResult').html('Auth Result:<br/>');
+      for (var field in authResult) {
+        $('#authResult').append(' ' + field + ': ' + authResult[field] + '<br/>');
+      }
+      if (authResult['access_token']) {
+        // The user is signed in
+        this.authResult = authResult;
+        // After we load the Google+ API, render the profile data from Google+.
+        gapi.client.load('plus','v1',this.renderProfile);
+      } else if (authResult['error']) {
+        // There was an error, which means the user is not signed in.
+        // As an example, you can troubleshoot by writing to the console:
+        console.log('There was an error: ' + authResult['error']);
+        $('#authResult').append('Logged out');
+        $('#authOps').hide('slow');
+        $('#gConnect').show();
+        $('#welcome').show();
+      }
+      console.log('authResult', authResult);
+    },
+    /**
+     * Retrieves and renders the authenticated user's Google+ profile.
+     */
+    renderProfile: function() {
+      var request = gapi.client.plus.people.get( {'userId' : 'me'} );
+      request.execute( function(profile) {
+          $('#profile').empty();
+          if (profile.error) {
+            $('#profile').append(profile.error);
+            return;
+          }
+          helper.connectServer(profile.id);
+          //save information in html fields
+          $('#origin_id').val(profile.id);
+          helper.myOID=profile.id;
+          $('#origin').val(profile.displayName);
+          helper.myDisplayName=profile.displayName;
+          
+          $('#profile').append(
+              $('<p><img src=\"' + profile.image.url + '\"></p>'));
+          $('#profile').append(
+              $('<p>Hello ' + profile.displayName + '!<br />Tagline: ' +
+              profile.tagline + '<br />About: ' + profile.aboutMe + '</p>'));
+          if (profile.cover && profile.coverPhoto) {
+            $('#profile').append(
+                $('<p><img src=\"' + profile.cover.coverPhoto.url + '\"></p>'));
+          }
+        });
+      $('#authOps').show('slow');
+      $('#gConnect').hide();
+      $('a[href$="profileTab"]').show();
+      $('a[href$="authResultTab"]').show();
+      $('a[href$="visiblePeopleTab"]').show();
+      $('a[href$="graphTab"]').show();
+      $('#bottomInfo').hide();
+      $('#welcome').hide();
+    },
+    /**
+     * Retrieves and renders friends profiles
+     */
+    renderFriendsGraph: function() {
+      var request = gapi.client.request(args);
+      request.execute( function(profile) {
+          $('#profile').empty();
+          if (profile.error) {
+            $('#profile').append(profile.error);
+            return;
+          }
+          helper.connectServer(profile.id);
+          $('#profile').append(
+              $('<p><img src=\"' + profile.image.url + '\"></p>'));
+          $('#profile').append(
+              $('<p>Hello ' + profile.displayName + '!<br />Tagline: ' +
+              profile.tagline + '<br />About: ' + profile.aboutMe + '</p>'));
+          if (profile.cover && profile.coverPhoto) {
+            $('#profile').append(
+                $('<p><img src=\"' + profile.cover.coverPhoto.url + '\"></p>'));
+          }
+        });
+      $('#authOps').show('slow');
+      $('#gConnect').hide();
+    },
+    /**
+     * Calls the server endpoint to disconnect the app for the user.
+     */
+    disconnectServer: function() {
+      // Revoke the server tokens
+      $.ajax({
+        type: 'POST',
+        url: window.location.href + '/disconnect',
+        async: false,
+        success: function(result) {
+          console.log('revoke response: ' + result);
+          $('#authOps').hide();
+          $('#profile').empty();
+          $('#visiblePeople').empty();
+          $('#authResult').empty();
+          $('#gConnect').show();
+          $('a[href$="profileTab"]').hide();
+          $('a[href$="authResultTab"]').hide();
+          $('a[href$="visiblePeopleTab"]').hide();
+          $('a[href$="graphTab"]').hide();
+          $('#welcome').show();
+          $('#bottomInfo').show();
+        },
+        error: function(e) {
+          console.log(e);
+        }
+      });
+    },
+    /**
+     * Calls the server endpoint to connect the app for the user. The client
+     * sends the one-time authorization code to the server and the server
+     * exchanges the code for its own tokens to use for offline API access.
+     * For more information, see:
+     *   https://developers.google.com/+/web/signin/server-side-flow
+     */
+    connectServer: function(gplusId) {
+      console.log(this.authResult.code);
+      $.ajax({
+        type: 'POST',
+        url: window.location.href + '/connect?state={{ STATE }}&gplus_id=' +gplusId,
+        contentType: 'application/octet-stream; charset=utf-8',
+        success: function(result) {
+          //console.log(result);
+          helper.people();
+        },
+        processData: false,
+        data: this.authResult.code
+      });
+    },
+    /**
+     * Calls the server endpoint to get the list of people visible to this app.
+     */
+    people: function() {
+      $.ajax({
+        type: 'GET',
+        url: window.location.href + '/people',
+        contentType: 'application/octet-stream; charset=utf-8',
+        success: function(result) {
+          helper.appendCircled(result);
+        },
+        processData: false
+      });
+    },
+    /**
+     * Displays visible People retrieved from server.
+     *
+     * @param {Object} people A list of Google+ Person resources.
+     */
+    appendCircled: function(people) {
+      $('#visiblePeople').empty();
+
+      $('#visiblePeople').append('Number of people visible to this app: ' +
+          people.totalItems + '<br/>');
+      helper.initializeGraph();
+      helper.sigInst.addNode(helper.myOID,{label: helper.myDisplayName,color: '#00ff00'});
+      for (var personIndex in people.items) {
+        person = people.items[personIndex];
+        $('#visiblePeople').append('<a href="'+person.url+'"  targe="_blank"><img src="' + person.image.url + '"></a>');
+        $('#visiblePeople').append(person.displayName);
+        helper.sigInst.addNode(person.id,{label: person.displayName,color: '#ff0000'});
+        helper.sigInst.addEdge("index_"+personIndex,helper.myOID,person.id);
+        //console.log("User %s has friend %s", helper.myOID, person.id);
+      }
+    },
+    /**
+     * Calls the server endpoint to generate a graph
+     */
+    initializeGraph: function() {
+        console.log("Graph initialized")
+        if(helper.sigRoot == undefined)
+          helper.sigRoot=document.getElementById('sigma-example');
+        if(helper.sigInst ==undefined)
+        {
+          helper.sigInst = sigma.init(helper.sigRoot).drawingProperties({
+            defaultLabelColor: '#ccc',
+            font: 'Arial',
+            edgeColor: 'source',
+            defaultEdgeType: 'curve'
+          }).graphProperties({
+            minNodeSize: 1,
+            maxNodeSize: 10,
+            minEdgeSize: 1,
+            maxEdgeSize: 1
+          });
+        }
+    },    
+    /**
+     * Calls the server endpoint to generate a graph
+     */
+    search: function() {
+        // This sample assumes a client object has been created.
+        // To learn more about creating a client, check out the starter:
+        //  https://developers.google.com/+/quickstart/javascript
+        
+        var request = gapi.client.plus.people.search({
+          'query' : $('#origin').val
+        });
+        request.execute(function(resp) {
+          var numItems = resp.items.length;
+          for (var i = 0; i < numItems; i++) {
+            console.log(resp.items[i].displayName);
+          }
+          $('#origin').val=resp.items[i].displayName;
+          $('#origin_id').val=resp.items[i].id;
+        });
+    },    
+    /**
+     * Calls the server endpoint to generate a graph
+     */
+    graph: function(gplusId) {
+      $.ajax({
+        type: 'GET',
+        url: window.location.href + '/graph?state={{ STATE }}&oid=' +(gplusId) ,
+        contentType: 'application/octet-stream; charset=utf-8',
+        success: function(result) {
+          helper.appendPicture(result);
+        },
+        processData: false
+      });
+    },
+    /**
+     * Refresh the graph picture from source 
+     *
+     * @param {URL} a URL resource pointing to the picture
+     */
+    appendPicture: function(url) {
+      $('#graphPicture').empty();
+
+      $('#visiblePeople').append('Number of people visible to this app: ' +
+          people.totalItems + '<br/>');
+      for (var personIndex in people.items) {
+        person = people.items[personIndex];
+        $('#visiblePeople').append('<img src="' + person.image.url + '">');
+      }
+    },
+  };
+})();
+
+/**
+ * Perform jQuery initialization and check to ensure that you updated your
+ * client ID.
+ */
+$(document).ready(function() {
+  $("#profileMenu").click(function(){
+	//get collapse content selector
+	var collapse_content_selector = $(this).attr('href');					
+	//make the collapse content to be shown or hide
+	var toggle_switch = $(this);
+	$(collapse_content_selector).toggle(function(){
+	  if($(this).css('display')=='none'){
+		toggle_switch.html('Me on');
+	  }else{
+		toggle_switch.html('Me off');
+	  }
+	});
+  });
+  $("#authResulMenu").click(function(){
+	//get collapse content selector
+	var collapse_content_selector = $(this).attr('href');					
+	//make the collapse content to be shown or hide
+	var toggle_switch = $(this);
+	$(collapse_content_selector).toggle(function(){
+	  if($(this).css('display')=='none'){
+		toggle_switch.html('Console on');
+	  }else{
+		toggle_switch.html('Console off');
+	  }
+	});
+  });
+  $("#visiblePeopleMenu").click(function(){
+	//get collapse content selector
+	var collapse_content_selector = $(this).attr('href');					
+	//make the collapse content to be shown or hide
+	var toggle_switch = $(this);
+	$(collapse_content_selector).toggle(function(){
+	  if($(this).css('display')=='none'){
+		toggle_switch.html('Friends on');
+	  }else{
+		toggle_switch.html('Friends off');
+	  }
+	});
+  });
+  $("#graphMenu").click(function(){
+  
+      // The following method will parse the related sigma instance nodes
+    // and set their positions around a circle:
+      sigma.publicPrototype.myCircularLayout = function() {
+        var R = 100,
+            i = 0,
+            L = this.getNodesCount()-1;
+        if(L>0)
+        {
+            this.iterNodes(function(n){
+                if(n.id==helper.myOID)
+                {
+                    n.x=0;
+                    n.y=0;
+                }
+                else
+                {
+                      n.x = Math.cos(Math.PI*(i++)/L)*R;
+                      n.y = Math.sin(Math.PI*(i++)/L)*R;
+                }
+            });
+        }
+     
+        return this.position(0,0,1).draw();
+      };
+	//get collapse content selector
+	var collapse_content_selector = $(this).attr('href');					
+	//make the collapse content to be shown or hide
+	var toggle_switch = $(this);
+	$(collapse_content_selector).toggle(function(){
+	  if($(this).css('display')=='none'){
+		toggle_switch.html('Graph on');
+	  }else{
+        toggle_switch.html('Graph off');
+        // Draw the graph :
+        if(helper.sigInst != undefined)
+        {
+            console.log("Drawing graph")
+            helper.sigInst.draw();
+            console.log("Applying layout")
+            helper.sigInst.myCircularLayout();
+        }
+	  }
+	});
+  });
+  $('#disconnect').click(helper.disconnectServer);
+  if ($('[data-clientid="YOUR_CLIENT_ID"]').length > 0) {
+    alert('This sample requires your OAuth credentials (client ID) ' +
+        'from the Google APIs console:\n' +
+        '    https://code.google.com/apis/console/#:access\n\n' +
+        'Find and replace YOUR_CLIENT_ID with your client ID and ' +
+        'YOUR_CLIENT_SECRET with your client secret in the project sources.'
+    );
+  }
+});
+
+/**
+ * Calls the helper method that handles the authentication flow.
+ *
+ * @param {Object} authResult An Object which contains the access token and
+ *   other authentication information.
+ */
+function onSignInCallback(authResult) {
+  helper.onSignInCallback(authResult);
+}
+</script>
+
+  <style type="text/css">
+    /* sigma.js context : */
+    .sigma {
+      margin-left:auto;
+      margin-right:auto;
+      position: relative;
+      border-radius: 4px;
+      -moz-border-radius: 4px;
+      -webkit-border-radius: 4px;
+      background: #222;
+      width: 80%;
+      height: 500px;
+      top: 0;
+      left: 10 px;
+    }
+  </style>
+
+
+{% endblock %}
